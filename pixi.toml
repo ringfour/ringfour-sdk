@@ -1,0 +1,12 @@
+[workspace]
+name = "ringfour-sdk"
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-aarch64", "linux-64"]
+
+[dependencies]
+python = "3.12.*"
+uv = "*"
+
+[tasks]
+build = "uv build"
+check = "../ringfour-testing/scripts/check-platform.sh"

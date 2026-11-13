@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ringfour-sdk"
+version = "0.1.0.dev0"
+description = "Semantic, robot-agnostic Python SDK for ROS2 robots. Pure-Python client: no ROS required."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "websockets>=12",
+    "numpy>=1.24",
+    "pydantic>=2.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pyyaml>=6",
+]
+# Client-side kinematics (spec 26). The core SDK never imports these: the
+# dependency promise in spec 1.6 is websockets + numpy + pydantic, and
+# `ringfour.kinematics` is the only module that reaches for a backend, at
+# call time rather than at import. Wrapped and never exposed - no
+# roboticstoolbox type crosses the public API - so pinocchio stays a
+# one-file swap.
+kinematics = [
+    "roboticstoolbox-python>=1.1",
+    "spatialmath-python>=1.1",
+]
+[tool.setuptools.packages.find]
+include = ["ringfour*"]
+
+[tool.pytest.ini_options]
+testpaths = ["../ringfour-testing/platform_tests"]
+markers = [
+    "contract: deterministic hardening contract tests without ROS or a robot",
+    "protocol: isolated real protocol integration without ROS or a robot",
+    "integration: explicitly selected simulator or robot integration",
+    "hardware: requires explicit deployment and operator opt-in",
+    "sim: tests that launch Gazebo and the agent (slow; needs the base101 workspace built)",
+]
+

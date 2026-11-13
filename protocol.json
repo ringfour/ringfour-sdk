@@ -1,0 +1,5262 @@
+{
+  "enums": {
+    "AuditKind": {
+      "doc": "The kind of occurrence an AuditEvent records (spec section 18).",
+      "values": [
+        "command",
+        "result",
+        "safety",
+        "watch",
+        "estop",
+        "connection"
+      ]
+    },
+    "Controller": {
+      "doc": "The *role* a controller plays for a group, not its ROS node name.",
+      "values": [
+        "trajectory",
+        "stream",
+        "velocity",
+        "tool"
+      ]
+    },
+    "Frame": {
+      "doc": "The three frame aliases the agent resolves against the profile.",
+      "values": [
+        "@map",
+        "@odom",
+        "@base"
+      ]
+    },
+    "GroupKind": {
+      "doc": "What a joint group is for, which decides what it is allowed to do.",
+      "values": [
+        "arm",
+        "pointing",
+        "linear"
+      ]
+    },
+    "Locomotion": {
+      "doc": "The base's drive type. Gates what teleop accepts: ``lateral`` velocity needs OMNI.",
+      "values": [
+        "differential",
+        "omni",
+        "legged"
+      ]
+    },
+    "Outcome": {
+      "doc": "How an audited call ended.",
+      "values": [
+        "success",
+        "error",
+        "rejected",
+        "cancelled"
+      ]
+    },
+    "Phase": {
+      "doc": "Progress state of a motion, shared by NavStatus and TrajStatus.",
+      "values": [
+        "planning",
+        "moving",
+        "arrived",
+        "recovering",
+        "stuck",
+        "cancelled",
+        "failed"
+      ]
+    },
+    "SlamMode": {
+      "doc": "slam_toolbox's mode. Switched at service level, never by restarting the process (see the nav restructure).",
+      "values": [
+        "mapping",
+        "localization",
+        "idle"
+      ]
+    },
+    "Transport": {
+      "doc": "How array bytes reach the client.",
+      "values": [
+        "shm",
+        "net"
+      ]
+    }
+  },
+  "methods": {
+    "action.invoke": {
+      "doc": "Invoke a validated profile action. Returns an explicit unverified dispatch receipt; topic/payload details are integration diagnostics.",
+      "params": {
+        "action": "str",
+        "arguments": "dict"
+      },
+      "result": "DispatchReceipt"
+    },
+    "arm.joint_states": {
+      "doc": "Controller-level joint state of one arm (pre-MoveIt). Limits parsed from /robot_description (null for continuous joints / before the description arrives).",
+      "params": {
+        "arm": "str, profile group name",
+        "include_external": "bool, optional; default false",
+        "stamp": "optional float ROS seconds; select a recorded snapshot"
+      },
+      "result": {
+        "joints": "{name: {position, velocity, effort, limits: [lo, hi]|null}}",
+        "positions": "optional {joint: position}, measured robot snapshot when include_external=true",
+        "stamp": "optional float ROS seconds | null, common timestamp of snapshot"
+      }
+    },
+    "arm.wrench": {
+      "doc": "Latest force/torque reading of one arm's wrist sensor (profile force_torque.<arm>.topic).",
+      "params": {
+        "arm": "str"
+      },
+      "result": "ForceTorque"
+    },
+    "audit.query": {
+      "doc": "Query the agent's in-memory audit ring buffer. All filters optional; newest events last.",
+      "params": {
+        "kind": "AuditKind|null",
+        "limit": "int, default 500",
+        "since": "str|null, ISO 8601",
+        "task_id": "str|null"
+      },
+      "result": {
+        "events": "list[AuditEvent]"
+      }
+    },
+    "audit.subscribe": {
+      "doc": "Start receiving audit.event notifications on this connection.",
+      "params": null,
+      "result": {}
+    },
+    "audit.unsubscribe": {
+      "doc": "Stop receiving audit.event notifications.",
+      "params": null,
+      "result": {}
+    },
+    "camera.deproject": {
+      "doc": "Pixel -> 3D point using the depth + TF snapshotted with THAT frame (FrameExpired past frame_ttl). in_frame must be the camera frame or a capture-time snapshot (@map/@odom/@base).",
+      "params": {
+        "frame_id": "str, from a get_* result",
+        "in_frame": "str|absent",
+        "pixel": "[u, v]"
+      },
+      "result": {
+        "point": "Point"
+      }
+    },
+    "camera.get_cloud": {
+      "doc": "Voxel-downsampled point cloud from the latest depth (+rgb colors when aligned). voxel is mandatory: it is the size budget of the call.",
+      "params": {
+        "camera": "str",
+        "voxel": "float m, > 0"
+      },
+      "result": {
+        "colors": "PayloadRef (N,3) uint8 | null",
+        "count": "int",
+        "frame": "str",
+        "points": "PayloadRef (N,3) float32",
+        "stamp": "float"
+      }
+    },
+    "camera.get_depth": {
+      "doc": "Latest depth frame, float32 meters, via PayloadRef.",
+      "params": {
+        "camera": "str"
+      },
+      "result": {
+        "camera": "str",
+        "frame_id": "str",
+        "payload": "PayloadRef",
+        "stamp": "float"
+      }
+    },
+    "camera.get_frame": {
+      "doc": "Latest RGB frame as a PayloadRef (raw pixels over shared memory in v1 \u2014 local execution; compressed transports are a future PayloadRef.transport). frame_id stays valid for deprojection for frame_ttl seconds.",
+      "params": {
+        "camera": "str"
+      },
+      "result": {
+        "camera": "str",
+        "frame_id": "str",
+        "payload": "PayloadRef",
+        "stamp": "float"
+      }
+    },
+    "camera.get_synced": {
+      "doc": "RGB-D pair with closest stamps (within the agent's sync tolerance); both halves share one frame_id.",
+      "params": {
+        "camera": "str"
+      },
+      "result": {
+        "depth": "as camera.get_depth",
+        "frame": "as camera.get_frame"
+      }
+    },
+    "camera.info": {
+      "doc": "Camera metadata: intrinsics (null without a camera_info topic), depth availability, frame_ttl, TF frame.",
+      "params": {
+        "camera": "str"
+      },
+      "result": {
+        "camera": "str",
+        "frame": "str",
+        "frame_ttl": "float s",
+        "has_depth": "bool",
+        "has_rgb": "bool",
+        "intrinsics": "CameraIntrinsics|null",
+        "max_stream_fps": "float"
+      }
+    },
+    "camera.stream_start": {
+      "doc": "Start a server-pushed frame stream (stream.data notifications). fps is clamped to the profile's max_stream_fps.",
+      "params": {
+        "camera": "str",
+        "fps": "float, default 5"
+      },
+      "result": {
+        "fps": "float, granted",
+        "stream_id": "str"
+      }
+    },
+    "camera.stream_stop": {
+      "doc": "Stop a frame stream started by this client.",
+      "params": {
+        "stream_id": "str"
+      },
+      "result": {}
+    },
+    "commands.get": {
+      "doc": "Query retained acceptance without replaying a mutating request. Mutations carry top-level command_id (epoch.expiry_milliseconds.uuid).",
+      "params": {
+        "command_id": "str"
+      },
+      "result": "CommandRecord"
+    },
+    "debug.run_task": {
+      "doc": "Test-only: a cancellable timer task emitting progress updates. Exercises the task lifecycle until real long-running verbs exist.",
+      "params": {
+        "duration": "float s, default 1.0",
+        "fail": "bool, fail on purpose",
+        "ticks": "int, default 10"
+      },
+      "result": {
+        "task_id": "str"
+      }
+    },
+    "debug.send_payload": {
+      "doc": "Test-only: agent sends a random binary payload of the requested size, returns its id and sha256. Exercises the binary channel until real image methods exist (Phase 4).",
+      "params": {
+        "size": "int, bytes to send"
+      },
+      "result": {
+        "payload_id": "int",
+        "sha256": "str, hex digest"
+      }
+    },
+    "debug.set_estop": {
+      "doc": "Simulated e-stop toggle (for profiles with no hardware e-stop topic). Engaged e-stop rejects all motion methods with SafetyViolation(reason='estop').",
+      "params": {
+        "engaged": "bool"
+      },
+      "result": {
+        "engaged": "bool"
+      }
+    },
+    "env.read": {
+      "doc": "Latest environmental reading (profile environment.*).",
+      "params": {
+        "kind": "'temperature'|'pressure'|'illuminance'"
+      },
+      "result": "Temperature | FluidPressure | Illuminance"
+    },
+    "events.subscribe": {
+      "doc": "Start receiving event notifications (estop changes, watch fires) on this connection.",
+      "params": null,
+      "result": {}
+    },
+    "events.unsubscribe": {
+      "doc": "Stop receiving event notifications.",
+      "params": null,
+      "result": {}
+    },
+    "group.control_start": {
+      "doc": "Acquire counted control authority; controller changes are serialized and unwound on failure.",
+      "params": {
+        "group": "str",
+        "raw": "str|null",
+        "role": "Controller|null"
+      },
+      "result": {
+        "controller": "str",
+        "deactivated": "list[str]",
+        "loaded": "list[str]",
+        "session_id": "str"
+      }
+    },
+    "group.control_stop": {
+      "doc": "Cancel this group's work, restore controllers with readback, and release only this acquisition. Cleanup failure quarantines motion.",
+      "params": {
+        "group": "str",
+        "session_id": "str"
+      },
+      "result": {}
+    },
+    "group.hold": {
+      "doc": "Command fresh finite measured positions in a current session. Reject while a trajectory occupies the adapter.",
+      "params": {
+        "group": "str",
+        "session_id": "str"
+      },
+      "result": {
+        "positions": "dict[str,float]"
+      }
+    },
+    "group.start_tool": {
+      "doc": "Accept verified positioning work; physical contact/holding is separate.",
+      "params": {
+        "group": "str",
+        "position": "finite float native units"
+      },
+      "result": {
+        "task_id": "str"
+      }
+    },
+    "group.start_trajectory": {
+      "doc": "Submit a model-bound trajectory; task updates carry verified endpoint/stopping evidence.",
+      "params": {
+        "group": "str",
+        "session_id": "str",
+        "trajectory": "JointTrajectory"
+      },
+      "result": {
+        "task_id": "str"
+      }
+    },
+    "group.stop": {
+      "doc": "Cancel only this group's accepted tasks; returns dispatch count, not verified physical-rest evidence.",
+      "params": {
+        "group": "str",
+        "session_id": "str"
+      },
+      "result": {
+        "cancelled": "int"
+      }
+    },
+    "group.tool_state": {
+      "doc": "Read measured tool state and holding inference.",
+      "params": {
+        "group": "str"
+      },
+      "result": "tool feedback object"
+    },
+    "guard.open": {
+      "doc": "Owner-scoped persistent guard; initial fresh safe evaluation precedes acceptance.",
+      "params": {
+        "condition": "SignalCondition"
+      },
+      "result": "GuardStatus"
+    },
+    "guard.remove": {
+      "doc": "Stop/drain before removing only this guard inhibit.",
+      "params": {
+        "guard_id": "str"
+      },
+      "result": {
+        "cleanup_confirmed": "bool",
+        "removed": "bool"
+      }
+    },
+    "guard.reset": {
+      "doc": "Reset after verified cleanup and fresh safe evaluation; never resumes old work.",
+      "params": {
+        "guard_id": "str"
+      },
+      "result": "GuardStatus"
+    },
+    "guard.status": {
+      "doc": "Owner-only guard status.",
+      "params": {
+        "guard_id": "str"
+      },
+      "result": "GuardStatus"
+    },
+    "hello": {
+      "doc": "Handshake. Must be the first call on a connection.",
+      "params": "Hello",
+      "result": "Welcome"
+    },
+    "imu.mag": {
+      "doc": "Latest magnetometer reading (profile imu.mag_topic).",
+      "params": null,
+      "result": "MagReading"
+    },
+    "imu.read": {
+      "doc": "Latest IMU reading (profile imu.topic).",
+      "params": null,
+      "result": "ImuReading"
+    },
+    "lease.renew": {
+      "doc": "Renew this connection's finite authority; never refreshes drive intent.",
+      "params": {
+        "epoch": "str",
+        "lease_id": "str"
+      },
+      "result": {
+        "epoch": "str",
+        "lease_id": "str",
+        "lifetime": "float"
+      }
+    },
+    "lidar.scan": {
+      "doc": "Latest 2D sweep; ranges travel as a PayloadRef (float32 meters).",
+      "params": null,
+      "result": {
+        "angle_increment": "float",
+        "angle_max": "float",
+        "angle_min": "float",
+        "frame": "str",
+        "ranges": "PayloadRef (N,) float32",
+        "stamp": "float"
+      }
+    },
+    "lidar.stream_start": {
+      "doc": "Start a server-pushed scan stream (stream.data notifications). hz is server-clamped.",
+      "params": {
+        "hz": "float, default 5"
+      },
+      "result": {
+        "hz": "float, granted",
+        "stream_id": "str"
+      }
+    },
+    "lidar.stream_stop": {
+      "doc": "Stop a scan stream started by this client.",
+      "params": {
+        "stream_id": "str"
+      },
+      "result": {}
+    },
+    "measurement.get": {
+      "doc": "Read a bounded fresh pose/joint observation with source/receive provenance.",
+      "params": {
+        "frame": "str|null",
+        "group": "str|null",
+        "kind": "pose|joints",
+        "max_age": "positive float",
+        "require_valid": "bool",
+        "timeout": "nonnegative float"
+      },
+      "result": "Measurement"
+    },
+    "mobility.get_state": {
+      "doc": "Pose (map frame when localized, else odom \u2014 pose.frame says which), velocity, is_moving, distance_traveled.",
+      "params": null,
+      "result": {
+        "distance_traveled": "float m",
+        "is_moving": "bool",
+        "odometry_pose": "optional Pose in odometry frame",
+        "pose": "Pose",
+        "stamp": "optional float seconds, odometry clock",
+        "velocity": "Twist"
+      }
+    },
+    "mobility.navigate_to": {
+      "doc": "Navigate to a goal via Nav2 (task). goal is a Pose or {place: name} (spec 17 sugar). The agent clears both costmaps first. task.update notifications carry feedback in data (distance_remaining, pose, ...). Failure: NavigationFailed with reason no_path|stuck|aborted.",
+      "params": {
+        "goal": "Pose | {place: str}"
+      },
+      "result": {
+        "task_id": "str"
+      }
+    },
+    "mobility.start_route": {
+      "doc": "Accept a finite framed route with measured arrival at every endpoint.",
+      "params": {
+        "goals": "list[Pose]"
+      },
+      "result": {
+        "task_id": "str"
+      }
+    },
+    "mobility.stop": {
+      "doc": "Immediate halt: cancels running mobility tasks + the active Nav2 goal, zeroes velocity. No resume (Q3).",
+      "params": null,
+      "result": {
+        "cancelled": "int, tasks cancelled"
+      }
+    },
+    "operations.get": {
+      "doc": "Query retained terminal evidence or explicit unknown outcome after restart; authenticated principal ownership is required across connections.",
+      "params": {
+        "operation_id": "str"
+      },
+      "result": "OperationRecord"
+    },
+    "payload.set_transport": {
+      "doc": "Select the connection-local array transport advertised by welcome.",
+      "params": {
+        "transport": "shm | net"
+      },
+      "result": {
+        "transport": "shm | net"
+      }
+    },
+    "ping": {
+      "doc": "Round-trip check; returns an empty object.",
+      "params": null,
+      "result": {}
+    },
+    "places.delete": {
+      "doc": "Delete a named place from the active map (UnknownPlace if absent).",
+      "params": {
+        "name": "str"
+      },
+      "result": {}
+    },
+    "places.get": {
+      "doc": "A named place's Pose on the active map (UnknownPlace if absent \u2014 including places saved on OTHER maps).",
+      "params": {
+        "name": "str"
+      },
+      "result": {
+        "pose": "Pose"
+      }
+    },
+    "places.list": {
+      "doc": "Place names on the active map.",
+      "params": null,
+      "result": {
+        "names": "list[str]"
+      }
+    },
+    "places.save": {
+      "doc": "Save a named place on the active map; pose defaults to the robot's current pose. Persists alongside the map files (places.yaml, human-editable).",
+      "params": {
+        "name": "str",
+        "pose": "Pose|absent"
+      },
+      "result": {
+        "pose": "Pose, as saved"
+      }
+    },
+    "range.read": {
+      "doc": "Latest reading of one single-beam ranger (profile range_sensors.<name>).",
+      "params": {
+        "name": "str"
+      },
+      "result": "RangeReading"
+    },
+    "signal.get": {
+      "doc": "Read a discovered signal with explicit source/receive freshness.",
+      "params": {
+        "max_age": "positive float",
+        "path": "str",
+        "require_valid": "bool",
+        "timeout": "nonnegative float"
+      },
+      "result": "Measurement"
+    },
+    "slam.delete": {
+      "doc": "Delete a saved map (refuses the active one).",
+      "params": {
+        "name": "str"
+      },
+      "result": {}
+    },
+    "slam.get_map": {
+      "doc": "The current occupancy grid; data travels as a PayloadRef ((H,W) int8, ROS convention: -1 unknown, 0 free, 100 occupied).",
+      "params": null,
+      "result": {
+        "height": "int",
+        "origin": "Pose of cell (0,0)",
+        "payload": "PayloadRef",
+        "resolution": "float",
+        "stamp": "float",
+        "width": "int"
+      }
+    },
+    "slam.get_state": {
+      "doc": "SLAM status in one call.",
+      "params": null,
+      "result": {
+        "active_map": "str|null",
+        "backend": "str",
+        "is_lost": "bool",
+        "localization_quality": "float 0..1 (heuristic: map->odom stability)",
+        "mode": "SlamMode",
+        "saved_maps": "list[str]",
+        "supports_preserve_graph": "bool, optional"
+      }
+    },
+    "slam.load": {
+      "doc": "Load a saved map's pose graph and continue mapping on top of it.",
+      "params": {
+        "name": "str"
+      },
+      "result": {
+        "active_map": "str",
+        "mode": "SlamMode"
+      }
+    },
+    "slam.localize": {
+      "doc": "Switch to localization mode against a saved map (default: the active one) at the given pose (default: current estimate).",
+      "params": {
+        "name": "str|absent",
+        "pose": "Pose|absent"
+      },
+      "result": {
+        "active_map": "str",
+        "mode": "SlamMode"
+      }
+    },
+    "slam.map_info": {
+      "doc": "Metadata of a saved map.",
+      "params": {
+        "name": "str"
+      },
+      "result": {
+        "info": "MapInfo"
+      }
+    },
+    "slam.relocalize": {
+      "doc": "Re-run localization at the current pose estimate (the is_lost recovery path).",
+      "params": null,
+      "result": {
+        "mode": "SlamMode"
+      }
+    },
+    "slam.save": {
+      "doc": "Serialize the pose graph + export the 2D grid + write MapInfo under map_dir/<name>/. Scratch-map places migrate to the named map.",
+      "params": {
+        "name": "str"
+      },
+      "result": {
+        "info": "MapInfo"
+      }
+    },
+    "slam.start": {
+      "doc": "Ensure mapping mode: unpause from idle, or reset to a fresh map from localization (modes are service-level, never process restarts). Set preserve_graph to resume the loaded graph without clearing it.",
+      "params": {
+        "preserve_graph": "bool, optional; default false"
+      },
+      "result": {
+        "mode": "SlamMode"
+      }
+    },
+    "slam.stop": {
+      "doc": "Pause map building (idle); map + TF stay published.",
+      "params": null,
+      "result": {
+        "mode": "SlamMode"
+      }
+    },
+    "slam.wait_for_localization": {
+      "doc": "Block until localization quality is healthy; TimeoutError otherwise.",
+      "params": {
+        "timeout": "float s, default 10"
+      },
+      "result": {
+        "localization_quality": "float 0..1"
+      }
+    },
+    "status.diagnostics": {
+      "doc": "System health snapshot (profile status.diagnostics).",
+      "params": null,
+      "result": "DiagnosticsReport"
+    },
+    "status.get": {
+      "doc": "Battery (null without a battery topic) and e-stop state.",
+      "params": null,
+      "result": {
+        "battery": "{level: float 0..100|null, is_charging: bool|null} | null",
+        "estop": "bool"
+      }
+    },
+    "task.cancel": {
+      "doc": "Owner-only cancellation. Terminal cancellation is idempotent; unknown or expired IDs fail.",
+      "params": {
+        "task_id": "str"
+      },
+      "result": "CancelReceipt (operation_id supplied by SDK)"
+    },
+    "task.status": {
+      "doc": "Owner-only authoritative state, retained after completion for the handshake's advertised window.",
+      "params": {
+        "task_id": "str"
+      },
+      "result": "TaskUpdate"
+    },
+    "teleop.drive": {
+      "doc": "One velocity command, clamped by profile limits. Must recur within the watchdog period or the agent halts the robot. lateral needs omni locomotion.",
+      "params": {
+        "angular": "float rad/s",
+        "lateral": "float m/s, omni only",
+        "linear": "float m/s"
+      },
+      "result": {}
+    },
+    "teleop.end": {
+      "doc": "Zero velocity, stop the watchdog, release the motion lock.",
+      "params": null,
+      "result": {}
+    },
+    "teleop.start": {
+      "doc": "Acquire the motion lock and start a teleop session. Watchdog is clamped to the profile's max_watchdog.",
+      "params": {
+        "watchdog": "float s, requested"
+      },
+      "result": {
+        "watchdog": "float s, granted"
+      }
+    },
+    "teleop.stop": {
+      "doc": "Immediate zero velocity; the session stays alive.",
+      "params": null,
+      "result": {}
+    },
+    "tf.frames": {
+      "doc": "All frame names currently in the TF tree.",
+      "params": null,
+      "result": {
+        "frames": "list[str]"
+      }
+    },
+    "tf.lookup": {
+      "doc": "Latest transform that re-expresses child-frame coordinates in the parent frame. @map/@odom/@base aliases resolve against the profile.",
+      "params": {
+        "child": "str",
+        "parent": "str",
+        "stamp": "optional float ROS seconds; omit for latest",
+        "timeout": "float s, default 2.0"
+      },
+      "result": "Transform"
+    },
+    "tf.transform": {
+      "doc": "Re-express a Pose or Point in another frame.",
+      "params": {
+        "entity": "Pose|Point",
+        "kind": "'pose'|'point'",
+        "timeout": "float s, default 2.0",
+        "to_frame": "str"
+      },
+      "result": {
+        "entity": "Pose|Point in to_frame"
+      }
+    },
+    "tf.wait_for": {
+      "doc": "Block until a frame exists in TF; TimeoutError otherwise.",
+      "params": {
+        "frame": "str",
+        "timeout": "float s, default 5.0"
+      },
+      "result": {}
+    },
+    "watch.poll": {
+      "doc": "Read a watch's latched state (owner only).",
+      "params": {
+        "watch_id": "str"
+      },
+      "result": {
+        "events": "[[stamp, value], ...] debounced edges",
+        "triggered": "bool, latched",
+        "triggered_at": "float|null, wall stamp of first fire",
+        "value": "float|null"
+      }
+    },
+    "watch.start": {
+      "doc": "Arm a bridge-side condition monitor over a dotted state path. Exactly one of above/below/outside. stop=true halts all motion when it fires (teleop sessions ended, tasks cancelled, zero twist), audit-logged, and survives owner disconnect for `lifetime` seconds.",
+      "params": {
+        "above": "float|absent",
+        "below": "float|absent",
+        "debounce": "float s the condition must hold, default 0",
+        "lifetime": "float s|absent (agent default 600)",
+        "outside": "[lo, hi]|absent",
+        "path": "str, e.g. battery.level",
+        "stop": "bool, default false"
+      },
+      "result": {
+        "watch_id": "str"
+      }
+    },
+    "watch.stop": {
+      "doc": "Disarm and remove a watch (owner only).",
+      "params": {
+        "watch_id": "str"
+      },
+      "result": {}
+    }
+  },
+  "models": {
+    "AuditEvent": {
+      "$defs": {
+        "AuditKind": {
+          "description": "The kind of occurrence an AuditEvent records (spec section 18).",
+          "enum": [
+            "command",
+            "result",
+            "safety",
+            "watch",
+            "estop",
+            "connection"
+          ],
+          "title": "AuditKind",
+          "type": "string"
+        },
+        "Outcome": {
+          "description": "How an audited call ended.\n\nREJECTED is the safety layer refusing before the handler ran; ERROR is\nthe handler (or a task body) failing; CANCELLED is a running task\nstopped on request.\n\nCANCELLED is a fourth member beyond the three in spec section 27\n(decision 18, 2026-08-24). The audit log is the safety record, and it\nhas to distinguish \"the operator stopped it\" from \"it broke\" \u2014\ncollapsing a cancellation into ERROR would make the log lie about the\none thing it exists to answer. The free text that used to be stuffed\nin here (\"error: <msg>\", \"failed: <msg>\") moved to ``detail``, which\nis where the model always said it belonged.",
+          "enum": [
+            "success",
+            "error",
+            "rejected",
+            "cancelled"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        }
+      },
+      "description": "One audited occurrence on the agent.\n\n``stamp`` is ISO 8601 UTC. ``client`` is the connection id that caused\nthe event (None for agent-internal events). ``call`` is the wire method\nplus its params with binary payloads elided. ``outcome`` carries the\nreason in ``detail``.",
+      "properties": {
+        "call": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call"
+        },
+        "client": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client"
+        },
+        "detail": {
+          "additionalProperties": true,
+          "title": "Detail",
+          "type": "object"
+        },
+        "kind": {
+          "$ref": "#/$defs/AuditKind"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Outcome"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stamp": {
+          "title": "Stamp",
+          "type": "string"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        }
+      },
+      "required": [
+        "stamp",
+        "kind"
+      ],
+      "title": "AuditEvent",
+      "type": "object"
+    },
+    "BatteryState": {
+      "description": "Battery status (spec section 19).\n\n``level`` is 0-100; None until data arrives or when the driver sends\nNaN and the profile provides no voltage curve.",
+      "properties": {
+        "current": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Current"
+        },
+        "is_charging": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Is Charging"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Level"
+        },
+        "power_supply_status": {
+          "default": "unknown",
+          "enum": [
+            "charging",
+            "discharging",
+            "not_charging",
+            "full",
+            "unknown"
+          ],
+          "title": "Power Supply Status",
+          "type": "string"
+        },
+        "stamp": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stamp"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Temperature"
+        },
+        "voltage": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Voltage"
+        }
+      },
+      "required": [
+        "level"
+      ],
+      "title": "BatteryState",
+      "type": "object"
+    },
+    "CameraIntrinsics": {
+      "description": "Camera calibration (spec section 10), from the camera_info topic.",
+      "properties": {
+        "cx": {
+          "title": "Cx",
+          "type": "number"
+        },
+        "cy": {
+          "title": "Cy",
+          "type": "number"
+        },
+        "distortion_coeffs": {
+          "default": [],
+          "items": {
+            "type": "number"
+          },
+          "title": "Distortion Coeffs",
+          "type": "array"
+        },
+        "distortion_model": {
+          "default": "plumb_bob",
+          "title": "Distortion Model",
+          "type": "string"
+        },
+        "fx": {
+          "title": "Fx",
+          "type": "number"
+        },
+        "fy": {
+          "title": "Fy",
+          "type": "number"
+        },
+        "height": {
+          "title": "Height",
+          "type": "integer"
+        },
+        "width": {
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fx",
+        "fy",
+        "cx",
+        "cy",
+        "width",
+        "height"
+      ],
+      "title": "CameraIntrinsics",
+      "type": "object"
+    },
+    "CancelReceipt": {
+      "additionalProperties": false,
+      "description": "Cancellation request acknowledgement, never evidence of measured rest.",
+      "properties": {
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "already_terminal": {
+          "title": "Already Terminal",
+          "type": "boolean"
+        },
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation_id",
+        "accepted",
+        "already_terminal"
+      ],
+      "title": "CancelReceipt",
+      "type": "object"
+    },
+    "CommandRecord": {
+      "additionalProperties": false,
+      "description": "Durable acceptance reply, or explicit unknown outcome after a crash.",
+      "properties": {
+        "command_id": {
+          "title": "Command Id",
+          "type": "string"
+        },
+        "epoch": {
+          "title": "Epoch",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "expires_at": {
+          "title": "Expires At",
+          "type": "number"
+        },
+        "method": {
+          "title": "Method",
+          "type": "string"
+        },
+        "operation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operation Id"
+        },
+        "result": {
+          "default": null,
+          "title": "Result"
+        },
+        "retained_until": {
+          "title": "Retained Until",
+          "type": "number"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "completed",
+            "unknown"
+          ],
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "command_id",
+        "epoch",
+        "method",
+        "state",
+        "expires_at",
+        "retained_until"
+      ],
+      "title": "CommandRecord",
+      "type": "object"
+    },
+    "DiagnosticsReport": {
+      "$defs": {
+        "SubsystemStatus": {
+          "description": "One subsystem's health line in a DiagnosticsReport.",
+          "properties": {
+            "level": {
+              "enum": [
+                "ok",
+                "warn",
+                "error",
+                "stale"
+              ],
+              "title": "Level",
+              "type": "string"
+            },
+            "message": {
+              "default": "",
+              "title": "Message",
+              "type": "string"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "values": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "default": {},
+              "title": "Values",
+              "type": "object"
+            }
+          },
+          "required": [
+            "name",
+            "level"
+          ],
+          "title": "SubsystemStatus",
+          "type": "object"
+        }
+      },
+      "description": "System health snapshot from /diagnostics.",
+      "properties": {
+        "stamp": {
+          "title": "Stamp",
+          "type": "number"
+        },
+        "subsystems": {
+          "items": {
+            "$ref": "#/$defs/SubsystemStatus"
+          },
+          "title": "Subsystems",
+          "type": "array"
+        }
+      },
+      "required": [
+        "subsystems",
+        "stamp"
+      ],
+      "title": "DiagnosticsReport",
+      "type": "object"
+    },
+    "DispatchReceipt": {
+      "description": "A vendor command was dispatched; physical completion is unverified.",
+      "properties": {
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "completion": {
+          "const": "unverified",
+          "default": "unverified",
+          "title": "Completion",
+          "type": "string"
+        },
+        "dispatched": {
+          "title": "Dispatched",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "dispatched"
+      ],
+      "title": "DispatchReceipt",
+      "type": "object"
+    },
+    "FluidPressure": {
+      "description": "Barometric/fluid pressure, Pascals.",
+      "properties": {
+        "frame": {
+          "title": "Frame",
+          "type": "string"
+        },
+        "pressure": {
+          "title": "Pressure",
+          "type": "number"
+        },
+        "stamp": {
+          "title": "Stamp",
+          "type": "number"
+        },
+        "variance": {
+          "default": 0.0,
+          "title": "Variance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "pressure",
+        "stamp",
+        "frame"
+      ],
+      "title": "FluidPressure",
+      "type": "object"
+    },
+    "ForceTorque": {
+      "$defs": {
+        "Vec3": {
+          "description": "A frameless 3-vector.",
+          "properties": {
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Vec3",
+          "type": "object"
+        }
+      },
+      "description": "6-axis force/torque reading (wrist sensors and the like).\n\nA discovered wrench signal can form a persistent guard condition;\nthreshold and fresh source/receive evidence belong to the deployment.",
+      "properties": {
+        "force": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "frame": {
+          "title": "Frame",
+          "type": "string"
+        },
+        "stamp": {
+          "title": "Stamp",
+          "type": "number"
+        },
+        "torque": {
+          "$ref": "#/$defs/Vec3"
+        }
+      },
+      "required": [
+        "force",
+        "torque",
+        "stamp",
+        "frame"
+      ],
+      "title": "ForceTorque",
+      "type": "object"
+    },
+    "Frontier": {
+      "$defs": {
+        "Pose": {
+          "description": "Position + orientation in a frame.\n\nShorthand: ``Pose(x=1, y=2, yaw=1.57, frame=\"map\")`` builds the\nquaternion for you (passing both ``yaw`` and ``q`` is an error).",
+          "properties": {
+            "frame": {
+              "title": "Frame",
+              "type": "string"
+            },
+            "q": {
+              "$ref": "#/$defs/Quaternion",
+              "default": {
+                "w": 1.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              }
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "required": [
+            "frame"
+          ],
+          "title": "Pose",
+          "type": "object"
+        },
+        "Quaternion": {
+          "description": "Orientation as a unit quaternion. Identity by default.",
+          "properties": {
+            "w": {
+              "default": 1.0,
+              "title": "W",
+              "type": "number"
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Quaternion",
+          "type": "object"
+        }
+      },
+      "description": "A candidate exploration target (Phase 5).",
+      "properties": {
+        "area": {
+          "title": "Area",
+          "type": "number"
+        },
+        "distance": {
+          "title": "Distance",
+          "type": "number"
+        },
+        "pose": {
+          "$ref": "#/$defs/Pose"
+        }
+      },
+      "required": [
+        "pose",
+        "area",
+        "distance"
+      ],
+      "title": "Frontier",
+      "type": "object"
+    },
+    "GeoPose": {
+      "description": "A position on Earth (WGS84). Accepted by navigation verbs\nalongside Pose once GPS lands (spec section 13; spec-only in v1).",
+      "properties": {
+        "alt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alt"
+        },
+        "heading": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heading"
+        },
+        "lat": {
+          "title": "Lat",
+          "type": "number"
+        },
+        "lon": {
+          "title": "Lon",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lat",
+        "lon"
+      ],
+      "title": "GeoPose",
+      "type": "object"
+    },
+    "GroupInfo": {
+      "$defs": {
+        "Controller": {
+          "description": "The *role* a controller plays for a group, not its ROS node name.\n\nThe profile maps role -> controller name\n(``{trajectory: arm_trajectory_controller, ...}``), so a mission asks\nfor a capability and the profile answers with the robot's spelling of\nit. Every declared role must be loaded at boot (plan 6.0b) so the\nswitch is a switch, never a load.",
+          "enum": [
+            "trajectory",
+            "stream",
+            "velocity",
+            "tool"
+          ],
+          "title": "Controller",
+          "type": "string"
+        },
+        "GroupKind": {
+          "description": "What a joint group is for, which decides what it is allowed to do.\n\nARM groups take IK and cartesian targets (they have a ``tip``);\nPOINTING (pan/tilt) and LINEAR (lifts, rails) are joint-space only.",
+          "enum": [
+            "arm",
+            "pointing",
+            "linear"
+          ],
+          "title": "GroupKind",
+          "type": "string"
+        },
+        "ToolInfo": {
+          "description": "The tool fitted to a group, as the client sees it.",
+          "properties": {
+            "closed": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Closed"
+            },
+            "joint": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Joint"
+            },
+            "open": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Open"
+            },
+            "type": {
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "title": "ToolInfo",
+          "type": "object"
+        }
+      },
+      "description": "One group's static shape, delivered in the handshake.\n\nEverything here is profile config plus the joint list the agent\nresolved off the controller at startup. It is in the handshake and not\nbehind a call because kinematics is client-side (spec 26.2): a mission\ndoing `kin.reachable()` in a loop must not pay a round trip per solve,\nand it cannot solve at all without knowing the tip and the joint order.",
+      "properties": {
+        "control_modes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Controller"
+          },
+          "title": "Control Modes",
+          "type": "array"
+        },
+        "dof_mask": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dof Mask"
+        },
+        "joints": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Joints",
+          "type": "array"
+        },
+        "kind": {
+          "$ref": "#/$defs/GroupKind"
+        },
+        "pointing_frame": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pointing Frame"
+        },
+        "tip": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tip"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "workspace": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workspace"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "GroupInfo",
+      "type": "object"
+    },
+    "GuardStatus": {
+      "$defs": {
+        "Measurement_float_": {
+          "additionalProperties": false,
+          "properties": {
+            "clock_domain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Clock Domain"
+            },
+            "frame": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Frame"
+            },
+            "model_revision": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model Revision"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Reason"
+            },
+            "receive_age": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Receive Age"
+            },
+            "received_at": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Received At"
+            },
+            "robot_id": {
+              "title": "Robot Id",
+              "type": "string"
+            },
+            "source_age": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Source Age"
+            },
+            "source_stamp": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Source Stamp"
+            },
+            "validity": {
+              "enum": [
+                "valid",
+                "unavailable",
+                "stale",
+                "invalid"
+              ],
+              "title": "Validity",
+              "type": "string"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Value"
+            }
+          },
+          "required": [
+            "value",
+            "robot_id",
+            "model_revision",
+            "validity"
+          ],
+          "title": "Measurement[float]",
+          "type": "object"
+        },
+        "SignalCondition": {
+          "additionalProperties": false,
+          "description": "A validated signal threshold with a required source/receipt age budget.",
+          "properties": {
+            "comparison": {
+              "enum": [
+                "below",
+                "above"
+              ],
+              "title": "Comparison",
+              "type": "string"
+            },
+            "frame": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Frame"
+            },
+            "max_age": {
+              "default": 0.5,
+              "title": "Max Age",
+              "type": "number"
+            },
+            "path": {
+              "title": "Path",
+              "type": "string"
+            },
+            "robot_id": {
+              "title": "Robot Id",
+              "type": "string"
+            },
+            "threshold": {
+              "title": "Threshold",
+              "type": "number"
+            }
+          },
+          "required": [
+            "robot_id",
+            "path",
+            "comparison",
+            "threshold"
+          ],
+          "title": "SignalCondition",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Guard state is independent of operator e-stop and cleanup quarantine.",
+      "properties": {
+        "cleanup_confirmed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cleanup Confirmed"
+        },
+        "condition": {
+          "$ref": "#/$defs/SignalCondition"
+        },
+        "evaluation_age": {
+          "default": 0.0,
+          "title": "Evaluation Age",
+          "type": "number"
+        },
+        "guard_id": {
+          "title": "Guard Id",
+          "type": "string"
+        },
+        "observation": {
+          "$ref": "#/$defs/Measurement_float_"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "tripped": {
+          "title": "Tripped",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "guard_id",
+        "condition",
+        "tripped",
+        "observation"
+      ],
+      "title": "GuardStatus",
+      "type": "object"
+    },
+    "Hello": {
+      "description": "First client message. The agent rejects a mismatched protocol with\na ProtocolMismatch error before anything else is allowed.",
+      "properties": {
+        "client_version": {
+          "title": "Client Version",
+          "type": "string"
+        },
+        "protocol": {
+          "title": "Protocol",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "protocol",
+        "client_version"
+      ],
+      "title": "Hello",
+      "type": "object"
+    },
+    "Illuminance": {
+      "description": "Ambient light level, Lux.",
+      "properties": {
+        "frame": {
+          "title": "Frame",
+          "type": "string"
+        },
+        "illuminance": {
+          "title": "Illuminance",
+          "type": "number"
+        },
+        "stamp": {
+          "title": "Stamp",
+          "type": "number"
+        },
+        "variance": {
+          "default": 0.0,
+          "title": "Variance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "illuminance",
+        "stamp",
+        "frame"
+      ],
+      "title": "Illuminance",
+      "type": "object"
+    },
+    "ImuReading": {
+      "$defs": {
+        "Quaternion": {
+          "description": "Orientation as a unit quaternion. Identity by default.",
+          "properties": {
+            "w": {
+              "default": 1.0,
+              "title": "W",
+              "type": "number"
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Quaternion",
+          "type": "object"
+        },
+        "Vec3": {
+          "description": "A frameless 3-vector.",
+          "properties": {
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Vec3",
+          "type": "object"
+        }
+      },
+      "description": "IMU output. ``orientation`` is None when the IMU provides no\norientation estimate. Covariances are 9-element row-major; ROS marks\n\"unknown\" with -1 in element [0], preserved as None here.",
+      "properties": {
+        "angular_velocity": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "angular_velocity_covariance": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Angular Velocity Covariance"
+        },
+        "frame": {
+          "title": "Frame",
+          "type": "string"
+        },
+        "linear_acceleration": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "linear_acceleration_covariance": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Linear Acceleration Covariance"
+        },
+        "orientation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quaternion"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "orientation_covariance": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Orientation Covariance"
+        },
+        "stamp": {
+          "title": "Stamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "orientation",
+        "angular_velocity",
+        "linear_acceleration",
+        "stamp",
+        "frame"
+      ],
+      "title": "ImuReading",
+      "type": "object"
+    },
+    "JointConfiguration": {
+      "$defs": {
+        "JointValue": {
+          "additionalProperties": false,
+          "description": "One model-bound joint value in radians or metres, with model bounds.",
+          "properties": {
+            "lower": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Lower"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "position": {
+              "title": "Position",
+              "type": "number"
+            },
+            "unit": {
+              "enum": [
+                "rad",
+                "m"
+              ],
+              "title": "Unit",
+              "type": "string"
+            },
+            "upper": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Upper"
+            }
+          },
+          "required": [
+            "name",
+            "position",
+            "unit"
+          ],
+          "title": "JointValue",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Exact named joint coverage tied to one robot, group and model revision.",
+      "properties": {
+        "group": {
+          "title": "Group",
+          "type": "string"
+        },
+        "joints": {
+          "items": {
+            "$ref": "#/$defs/JointValue"
+          },
+          "title": "Joints",
+          "type": "array"
+        },
+        "model_revision": {
+          "title": "Model Revision",
+          "type": "string"
+        },
+        "robot": {
+          "title": "Robot",
+          "type": "string"
+        }
+      },
+      "required": [
+        "robot",
+        "group",
+        "model_revision",
+        "joints"
+      ],
+      "title": "JointConfiguration",
+      "type": "object"
+    },
+    "JointResidual": {
+      "additionalProperties": false,
+      "description": "One measured endpoint residual with its own unit and acceptance tolerance.",
+      "properties": {
+        "error": {
+          "title": "Error",
+          "type": "number"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "tolerance": {
+          "title": "Tolerance",
+          "type": "number"
+        },
+        "unit": {
+          "enum": [
+            "rad",
+            "m"
+          ],
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "error",
+        "unit",
+        "tolerance"
+      ],
+      "title": "JointResidual",
+      "type": "object"
+    },
+    "JointTrajectory": {
+      "$defs": {
+        "JointConfiguration": {
+          "additionalProperties": false,
+          "description": "Exact named joint coverage tied to one robot, group and model revision.",
+          "properties": {
+            "group": {
+              "title": "Group",
+              "type": "string"
+            },
+            "joints": {
+              "items": {
+                "$ref": "#/$defs/JointValue"
+              },
+              "title": "Joints",
+              "type": "array"
+            },
+            "model_revision": {
+              "title": "Model Revision",
+              "type": "string"
+            },
+            "robot": {
+              "title": "Robot",
+              "type": "string"
+            }
+          },
+          "required": [
+            "robot",
+            "group",
+            "model_revision",
+            "joints"
+          ],
+          "title": "JointConfiguration",
+          "type": "object"
+        },
+        "JointValue": {
+          "additionalProperties": false,
+          "description": "One model-bound joint value in radians or metres, with model bounds.",
+          "properties": {
+            "lower": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Lower"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "position": {
+              "title": "Position",
+              "type": "number"
+            },
+            "unit": {
+              "enum": [
+                "rad",
+                "m"
+              ],
+              "title": "Unit",
+              "type": "string"
+            },
+            "upper": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Upper"
+            }
+          },
+          "required": [
+            "name",
+            "position",
+            "unit"
+          ],
+          "title": "JointValue",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Model-bound configurations at strictly increasing finite times from start.\n\nEndpoint validation does not establish interpolation speed/acceleration safety.",
+      "properties": {
+        "configurations": {
+          "items": {
+            "$ref": "#/$defs/JointConfiguration"
+          },
+          "title": "Configurations",
+          "type": "array"
+        },
+        "times": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Times",
+          "type": "array"
+        }
+      },
+      "required": [
+        "configurations",
+        "times"
+      ],
+      "title": "JointTrajectory",
+      "type": "object"
+    },
+    "JointValue": {
+      "additionalProperties": false,
+      "description": "One model-bound joint value in radians or metres, with model bounds.",
+      "properties": {
+        "lower": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lower"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "position": {
+          "title": "Position",
+          "type": "number"
+        },
+        "unit": {
+          "enum": [
+            "rad",
+            "m"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "upper": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Upper"
+        }
+      },
+      "required": [
+        "name",
+        "position",
+        "unit"
+      ],
+      "title": "JointValue",
+      "type": "object"
+    },
+    "KinematicSnapshot": {
+      "description": "Measured joint positions and their common ROS time, if available.",
+      "properties": {
+        "positions": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Positions",
+          "type": "object"
+        },
+        "stamp": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stamp"
+        }
+      },
+      "required": [
+        "positions"
+      ],
+      "title": "KinematicSnapshot",
+      "type": "object"
+    },
+    "MagReading": {
+      "$defs": {
+        "Vec3": {
+          "description": "A frameless 3-vector.",
+          "properties": {
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Vec3",
+          "type": "object"
+        }
+      },
+      "description": "Magnetometer measurement (Tesla).",
+      "properties": {
+        "covariance": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Covariance"
+        },
+        "frame": {
+          "title": "Frame",
+          "type": "string"
+        },
+        "magnetic_field": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "stamp": {
+          "title": "Stamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "magnetic_field",
+        "stamp",
+        "frame"
+      ],
+      "title": "MagReading",
+      "type": "object"
+    },
+    "MapInfo": {
+      "description": "Metadata about a saved map (Phase 5).",
+      "properties": {
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "dimensions": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Dimensions",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "resolution": {
+          "title": "Resolution",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "created_at",
+        "resolution",
+        "dimensions"
+      ],
+      "title": "MapInfo",
+      "type": "object"
+    },
+    "Measurement": {
+      "additionalProperties": false,
+      "description": "A value and agent-computed freshness; unknown source age stays explicit.",
+      "properties": {
+        "clock_domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clock Domain"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame"
+        },
+        "model_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Model Revision"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "receive_age": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Receive Age"
+        },
+        "received_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Received At"
+        },
+        "robot_id": {
+          "title": "Robot Id",
+          "type": "string"
+        },
+        "source_age": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Age"
+        },
+        "source_stamp": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Stamp"
+        },
+        "validity": {
+          "enum": [
+            "valid",
+            "unavailable",
+            "stale",
+            "invalid"
+          ],
+          "title": "Validity",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "value",
+        "robot_id",
+        "model_revision",
+        "validity"
+      ],
+      "title": "Measurement",
+      "type": "object"
+    },
+    "MobilityState": {
+      "$defs": {
+        "Pose": {
+          "description": "Position + orientation in a frame.\n\nShorthand: ``Pose(x=1, y=2, yaw=1.57, frame=\"map\")`` builds the\nquaternion for you (passing both ``yaw`` and ``q`` is an error).",
+          "properties": {
+            "frame": {
+              "title": "Frame",
+              "type": "string"
+            },
+            "q": {
+              "$ref": "#/$defs/Quaternion",
+              "default": {
+                "w": 1.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              }
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "required": [
+            "frame"
+          ],
+          "title": "Pose",
+          "type": "object"
+        },
+        "Quaternion": {
+          "description": "Orientation as a unit quaternion. Identity by default.",
+          "properties": {
+            "w": {
+              "default": 1.0,
+              "title": "W",
+              "type": "number"
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Quaternion",
+          "type": "object"
+        },
+        "Twist": {
+          "description": "Linear (m/s) and angular (rad/s) velocity.",
+          "properties": {
+            "angular": {
+              "$ref": "#/$defs/Vec3",
+              "default": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              }
+            },
+            "linear": {
+              "$ref": "#/$defs/Vec3",
+              "default": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              }
+            }
+          },
+          "title": "Twist",
+          "type": "object"
+        },
+        "Vec3": {
+          "description": "A frameless 3-vector.",
+          "properties": {
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Vec3",
+          "type": "object"
+        }
+      },
+      "description": "One mobility reply, including robot-clock odometry and localized pose.\n\nOlder agents omit stamp/odometry_pose; neither is fabricated from wall time.",
+      "properties": {
+        "distance_traveled": {
+          "title": "Distance Traveled",
+          "type": "number"
+        },
+        "is_moving": {
+          "title": "Is Moving",
+          "type": "boolean"
+        },
+        "odometry_pose": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Pose"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pose": {
+          "$ref": "#/$defs/Pose"
+        },
+        "stamp": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stamp"
+        },
+        "velocity": {
+          "$ref": "#/$defs/Twist"
+        }
+      },
+      "required": [
+        "pose",
+        "velocity",
+        "is_moving",
+        "distance_traveled"
+      ],
+      "title": "MobilityState",
+      "type": "object"
+    },
+    "NavigationProgress": {
+      "$defs": {
+        "Pose": {
+          "description": "Position + orientation in a frame.\n\nShorthand: ``Pose(x=1, y=2, yaw=1.57, frame=\"map\")`` builds the\nquaternion for you (passing both ``yaw`` and ``q`` is an error).",
+          "properties": {
+            "frame": {
+              "title": "Frame",
+              "type": "string"
+            },
+            "q": {
+              "$ref": "#/$defs/Quaternion",
+              "default": {
+                "w": 1.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              }
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "required": [
+            "frame"
+          ],
+          "title": "Pose",
+          "type": "object"
+        },
+        "Quaternion": {
+          "description": "Orientation as a unit quaternion. Identity by default.",
+          "properties": {
+            "w": {
+              "default": 1.0,
+              "title": "W",
+              "type": "number"
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Quaternion",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Available navigation feedback; distance is an estimate, not completion.",
+      "properties": {
+        "pose": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Pose"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "remaining_distance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Remaining Distance"
+        }
+      },
+      "title": "NavigationProgress",
+      "type": "object"
+    },
+    "NavigationResult": {
+      "$defs": {
+        "Pose": {
+          "description": "Position + orientation in a frame.\n\nShorthand: ``Pose(x=1, y=2, yaw=1.57, frame=\"map\")`` builds the\nquaternion for you (passing both ``yaw`` and ``q`` is an error).",
+          "properties": {
+            "frame": {
+              "title": "Frame",
+              "type": "string"
+            },
+            "q": {
+              "$ref": "#/$defs/Quaternion",
+              "default": {
+                "w": 1.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              }
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "required": [
+            "frame"
+          ],
+          "title": "Pose",
+          "type": "object"
+        },
+        "Quaternion": {
+          "description": "Orientation as a unit quaternion. Identity by default.",
+          "properties": {
+            "w": {
+              "default": 1.0,
+              "title": "W",
+              "type": "number"
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Quaternion",
+          "type": "object"
+        },
+        "StopReport": {
+          "additionalProperties": false,
+          "description": "Measured software stopping criterion; hardware commissioning is separate.",
+          "properties": {
+            "criterion": {
+              "title": "Criterion",
+              "type": "string"
+            },
+            "dwell": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Dwell"
+            },
+            "elapsed": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Elapsed"
+            },
+            "physical_stop": {
+              "enum": [
+                "unverified",
+                "uncommissioned"
+              ],
+              "title": "Physical Stop",
+              "type": "string"
+            },
+            "resource": {
+              "title": "Resource",
+              "type": "string"
+            },
+            "verified": {
+              "title": "Verified",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "resource",
+            "verified",
+            "criterion",
+            "physical_stop"
+          ],
+          "title": "StopReport",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Verified arrival at a measured framed pose, not controller acknowledgement.",
+      "properties": {
+        "final_pose": {
+          "$ref": "#/$defs/Pose"
+        },
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "orientation_error": {
+          "title": "Orientation Error",
+          "type": "number"
+        },
+        "orientation_tolerance": {
+          "title": "Orientation Tolerance",
+          "type": "number"
+        },
+        "position_error": {
+          "title": "Position Error",
+          "type": "number"
+        },
+        "position_tolerance": {
+          "title": "Position Tolerance",
+          "type": "number"
+        },
+        "stop": {
+          "$ref": "#/$defs/StopReport"
+        }
+      },
+      "required": [
+        "operation_id",
+        "final_pose",
+        "position_error",
+        "orientation_error",
+        "position_tolerance",
+        "orientation_tolerance",
+        "stop"
+      ],
+      "title": "NavigationResult",
+      "type": "object"
+    },
+    "OperationRecord": {
+      "$defs": {
+        "TaskError": {
+          "description": "Why a task failed. ``type`` names a ringfour exception class;\n``data`` carries its extras (reason, limit, ...).",
+          "properties": {
+            "data": {
+              "additionalProperties": true,
+              "default": {},
+              "title": "Data",
+              "type": "object"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "type": {
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "message"
+          ],
+          "title": "TaskError",
+          "type": "object"
+        },
+        "TaskUpdate": {
+          "description": "One ``task.update`` notification.",
+          "properties": {
+            "cleanup": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Cleanup"
+            },
+            "data": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Data"
+            },
+            "error": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TaskError"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "message": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Message"
+            },
+            "progress": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Progress"
+            },
+            "report_age": {
+              "default": 0.0,
+              "title": "Report Age",
+              "type": "number"
+            },
+            "result": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Result"
+            },
+            "sequence": {
+              "default": 0,
+              "title": "Sequence",
+              "type": "integer"
+            },
+            "state": {
+              "title": "State",
+              "type": "string"
+            },
+            "task_id": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "task_id",
+            "state"
+          ],
+          "title": "TaskUpdate",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Queryable terminal evidence; active work at a crash remains unknown.",
+      "properties": {
+        "epoch": {
+          "title": "Epoch",
+          "type": "string"
+        },
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "physical_outcome": {
+          "enum": [
+            "recorded",
+            "unknown"
+          ],
+          "title": "Physical Outcome",
+          "type": "string"
+        },
+        "retained_until": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retained Until"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/TaskUpdate"
+        },
+        "state": {
+          "enum": [
+            "active",
+            "terminal",
+            "unknown"
+          ],
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation_id",
+        "epoch",
+        "state",
+        "snapshot",
+        "physical_outcome"
+      ],
+      "title": "OperationRecord",
+      "type": "object"
+    },
+    "OperationSnapshot": {
+      "$defs": {
+        "OperationState": {
+          "enum": [
+            "accepted",
+            "running",
+            "cancelling",
+            "succeeded",
+            "failed",
+            "cancelled"
+          ],
+          "title": "OperationState",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Immutable cached state; receipt age and sequence make staleness explicit.",
+      "properties": {
+        "observed_age": {
+          "title": "Observed Age",
+          "type": "number"
+        },
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "progress": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Progress"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/OperationState"
+        }
+      },
+      "required": [
+        "operation_id",
+        "state",
+        "sequence",
+        "observed_age"
+      ],
+      "title": "OperationSnapshot",
+      "type": "object"
+    },
+    "PayloadHeader": {
+      "description": "Announces one binary frame. ``kind`` says what the bytes are\n(\"image/jpeg\", \"depth/f32\", ...); ``meta`` carries kind-specific\nfields (camera name, stamp, array shape, ...).",
+      "properties": {
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "meta": {
+          "additionalProperties": true,
+          "title": "Meta",
+          "type": "object"
+        },
+        "payload_id": {
+          "title": "Payload Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "payload_id",
+        "kind",
+        "meta"
+      ],
+      "title": "PayloadHeader",
+      "type": "object"
+    },
+    "PayloadRef": {
+      "$defs": {
+        "Transport": {
+          "description": "How array bytes reach the client.\n\nSHM maps local Linux /dev/shm read-only. NET sends raw numeric arrays in\ntagged binary WebSocket frames, independently of JSON-RPC command objects.\nNew TCP clients negotiate NET; Unix clients default to SHM. Both can select\nexplicitly with Robot(..., transport=Transport.NET or Transport.SHM).",
+          "enum": [
+            "shm",
+            "net"
+          ],
+          "title": "Transport",
+          "type": "string"
+        }
+      },
+      "description": "Array metadata: name is a SHM segment or connection-local NET payload ID.\n\nNET preserves exact raw dtype/shape values, including metric float depth;\nit does not apply image compression or infer completion of robot commands.",
+      "properties": {
+        "dtype": {
+          "title": "Dtype",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "shape": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Shape",
+          "type": "array"
+        },
+        "size": {
+          "title": "Size",
+          "type": "integer"
+        },
+        "transport": {
+          "$ref": "#/$defs/Transport",
+          "default": "shm"
+        }
+      },
+      "required": [
+        "name",
+        "dtype",
+        "shape",
+        "size"
+      ],
+      "title": "PayloadRef",
+      "type": "object"
+    },
+    "Point": {
+      "description": "A located point: position + reference frame.",
+      "properties": {
+        "frame": {
+          "title": "Frame",
+          "type": "string"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "default": 0.0,
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "frame"
+      ],
+      "title": "Point",
+      "type": "object"
+    },
+    "Polygon": {
+      "description": "A 2D boundary: exploration bounds, exclusion zones, geofences.\n\n``points`` are (x, y) in ``frame``, or (lat, lon) when ``frame`` is\nNone (geo polygon).",
+      "properties": {
+        "frame": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame"
+        },
+        "points": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "title": "Polygon",
+      "type": "object"
+    },
+    "Pose": {
+      "$defs": {
+        "Quaternion": {
+          "description": "Orientation as a unit quaternion. Identity by default.",
+          "properties": {
+            "w": {
+              "default": 1.0,
+              "title": "W",
+              "type": "number"
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Quaternion",
+          "type": "object"
+        }
+      },
+      "description": "Position + orientation in a frame.\n\nShorthand: ``Pose(x=1, y=2, yaw=1.57, frame=\"map\")`` builds the\nquaternion for you (passing both ``yaw`` and ``q`` is an error).",
+      "properties": {
+        "frame": {
+          "title": "Frame",
+          "type": "string"
+        },
+        "q": {
+          "$ref": "#/$defs/Quaternion",
+          "default": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        "x": {
+          "default": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.0,
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "default": 0.0,
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "frame"
+      ],
+      "title": "Pose",
+      "type": "object"
+    },
+    "PowerLaneState": {
+      "description": "Latest reading of one switchable power lane: on/off, voltage,\ncurrent. ``on`` reflects the MOSFET state the firmware reports\n(may lag briefly after a command while the switch settles).",
+      "properties": {
+        "current": {
+          "title": "Current",
+          "type": "number"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "on": {
+          "title": "On",
+          "type": "boolean"
+        },
+        "stamp": {
+          "title": "Stamp",
+          "type": "number"
+        },
+        "voltage": {
+          "title": "Voltage",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "on",
+        "voltage",
+        "current",
+        "stamp"
+      ],
+      "title": "PowerLaneState",
+      "type": "object"
+    },
+    "ProfileInfo": {
+      "description": "What the client learns about the robot at handshake time.\n\n``capabilities`` lists the capability names the profile provides\n(e.g. \"mobility\", \"lidar\"); see spec section 4 for the registry.",
+      "properties": {
+        "capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "model",
+        "capabilities"
+      ],
+      "title": "ProfileInfo",
+      "type": "object"
+    },
+    "Quaternion": {
+      "description": "Orientation as a unit quaternion. Identity by default.",
+      "properties": {
+        "w": {
+          "default": 1.0,
+          "title": "W",
+          "type": "number"
+        },
+        "x": {
+          "default": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.0,
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "default": 0.0,
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "title": "Quaternion",
+      "type": "object"
+    },
+    "RangeReading": {
+      "description": "A single-beam distance measurement (ultrasonic / IR / ToF point\nsensor). ``range`` is inf when there is no return.\n\nA discovered range signal can form a persistent guard condition. The\ndeployment must review its threshold, freshness and covered motion.",
+      "properties": {
+        "field_of_view": {
+          "title": "Field Of View",
+          "type": "number"
+        },
+        "frame": {
+          "title": "Frame",
+          "type": "string"
+        },
+        "max_range": {
+          "title": "Max Range",
+          "type": "number"
+        },
+        "min_range": {
+          "title": "Min Range",
+          "type": "number"
+        },
+        "radiation_type": {
+          "enum": [
+            "ultrasonic",
+            "infrared"
+          ],
+          "title": "Radiation Type",
+          "type": "string"
+        },
+        "range": {
+          "title": "Range",
+          "type": "number"
+        },
+        "stamp": {
+          "title": "Stamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "range",
+        "min_range",
+        "max_range",
+        "field_of_view",
+        "radiation_type",
+        "stamp",
+        "frame"
+      ],
+      "title": "RangeReading",
+      "type": "object"
+    },
+    "RouteProgress": {
+      "$defs": {
+        "NavigationProgress": {
+          "additionalProperties": false,
+          "description": "Available navigation feedback; distance is an estimate, not completion.",
+          "properties": {
+            "pose": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Pose"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "remaining_distance": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Remaining Distance"
+            }
+          },
+          "title": "NavigationProgress",
+          "type": "object"
+        },
+        "Pose": {
+          "description": "Position + orientation in a frame.\n\nShorthand: ``Pose(x=1, y=2, yaw=1.57, frame=\"map\")`` builds the\nquaternion for you (passing both ``yaw`` and ``q`` is an error).",
+          "properties": {
+            "frame": {
+              "title": "Frame",
+              "type": "string"
+            },
+            "q": {
+              "$ref": "#/$defs/Quaternion",
+              "default": {
+                "w": 1.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              }
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "required": [
+            "frame"
+          ],
+          "title": "Pose",
+          "type": "object"
+        },
+        "Quaternion": {
+          "description": "Orientation as a unit quaternion. Identity by default.",
+          "properties": {
+            "w": {
+              "default": 1.0,
+              "title": "W",
+              "type": "number"
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Quaternion",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Route index and available navigation feedback; no inferred arrival.",
+      "properties": {
+        "navigation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NavigationProgress"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "waypoint_count": {
+          "title": "Waypoint Count",
+          "type": "integer"
+        },
+        "waypoint_index": {
+          "title": "Waypoint Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "waypoint_index",
+        "waypoint_count"
+      ],
+      "title": "RouteProgress",
+      "type": "object"
+    },
+    "RouteResult": {
+      "$defs": {
+        "NavigationResult": {
+          "additionalProperties": false,
+          "description": "Verified arrival at a measured framed pose, not controller acknowledgement.",
+          "properties": {
+            "final_pose": {
+              "$ref": "#/$defs/Pose"
+            },
+            "operation_id": {
+              "title": "Operation Id",
+              "type": "string"
+            },
+            "orientation_error": {
+              "title": "Orientation Error",
+              "type": "number"
+            },
+            "orientation_tolerance": {
+              "title": "Orientation Tolerance",
+              "type": "number"
+            },
+            "position_error": {
+              "title": "Position Error",
+              "type": "number"
+            },
+            "position_tolerance": {
+              "title": "Position Tolerance",
+              "type": "number"
+            },
+            "stop": {
+              "$ref": "#/$defs/StopReport"
+            }
+          },
+          "required": [
+            "operation_id",
+            "final_pose",
+            "position_error",
+            "orientation_error",
+            "position_tolerance",
+            "orientation_tolerance",
+            "stop"
+          ],
+          "title": "NavigationResult",
+          "type": "object"
+        },
+        "Pose": {
+          "description": "Position + orientation in a frame.\n\nShorthand: ``Pose(x=1, y=2, yaw=1.57, frame=\"map\")`` builds the\nquaternion for you (passing both ``yaw`` and ``q`` is an error).",
+          "properties": {
+            "frame": {
+              "title": "Frame",
+              "type": "string"
+            },
+            "q": {
+              "$ref": "#/$defs/Quaternion",
+              "default": {
+                "w": 1.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              }
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "required": [
+            "frame"
+          ],
+          "title": "Pose",
+          "type": "object"
+        },
+        "Quaternion": {
+          "description": "Orientation as a unit quaternion. Identity by default.",
+          "properties": {
+            "w": {
+              "default": 1.0,
+              "title": "W",
+              "type": "number"
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Quaternion",
+          "type": "object"
+        },
+        "StopReport": {
+          "additionalProperties": false,
+          "description": "Measured software stopping criterion; hardware commissioning is separate.",
+          "properties": {
+            "criterion": {
+              "title": "Criterion",
+              "type": "string"
+            },
+            "dwell": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Dwell"
+            },
+            "elapsed": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Elapsed"
+            },
+            "physical_stop": {
+              "enum": [
+                "unverified",
+                "uncommissioned"
+              ],
+              "title": "Physical Stop",
+              "type": "string"
+            },
+            "resource": {
+              "title": "Resource",
+              "type": "string"
+            },
+            "verified": {
+              "title": "Verified",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "resource",
+            "verified",
+            "criterion",
+            "physical_stop"
+          ],
+          "title": "StopReport",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Verified arrival evidence for every waypoint in a finite route.",
+      "properties": {
+        "arrivals": {
+          "items": {
+            "$ref": "#/$defs/NavigationResult"
+          },
+          "title": "Arrivals",
+          "type": "array"
+        },
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation_id",
+        "arrivals"
+      ],
+      "title": "RouteResult",
+      "type": "object"
+    },
+    "SignalCondition": {
+      "additionalProperties": false,
+      "description": "A validated signal threshold with a required source/receipt age budget.",
+      "properties": {
+        "comparison": {
+          "enum": [
+            "below",
+            "above"
+          ],
+          "title": "Comparison",
+          "type": "string"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame"
+        },
+        "max_age": {
+          "default": 0.5,
+          "title": "Max Age",
+          "type": "number"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "robot_id": {
+          "title": "Robot Id",
+          "type": "string"
+        },
+        "threshold": {
+          "title": "Threshold",
+          "type": "number"
+        }
+      },
+      "required": [
+        "robot_id",
+        "path",
+        "comparison",
+        "threshold"
+      ],
+      "title": "SignalCondition",
+      "type": "object"
+    },
+    "StopReport": {
+      "additionalProperties": false,
+      "description": "Measured software stopping criterion; hardware commissioning is separate.",
+      "properties": {
+        "criterion": {
+          "title": "Criterion",
+          "type": "string"
+        },
+        "dwell": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dwell"
+        },
+        "elapsed": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Elapsed"
+        },
+        "physical_stop": {
+          "enum": [
+            "unverified",
+            "uncommissioned"
+          ],
+          "title": "Physical Stop",
+          "type": "string"
+        },
+        "resource": {
+          "title": "Resource",
+          "type": "string"
+        },
+        "verified": {
+          "title": "Verified",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "resource",
+        "verified",
+        "criterion",
+        "physical_stop"
+      ],
+      "title": "StopReport",
+      "type": "object"
+    },
+    "SubsystemStatus": {
+      "description": "One subsystem's health line in a DiagnosticsReport.",
+      "properties": {
+        "level": {
+          "enum": [
+            "ok",
+            "warn",
+            "error",
+            "stale"
+          ],
+          "title": "Level",
+          "type": "string"
+        },
+        "message": {
+          "default": "",
+          "title": "Message",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "title": "Values",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "level"
+      ],
+      "title": "SubsystemStatus",
+      "type": "object"
+    },
+    "TaskError": {
+      "description": "Why a task failed. ``type`` names a ringfour exception class;\n``data`` carries its extras (reason, limit, ...).",
+      "properties": {
+        "data": {
+          "additionalProperties": true,
+          "default": {},
+          "title": "Data",
+          "type": "object"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "message"
+      ],
+      "title": "TaskError",
+      "type": "object"
+    },
+    "TaskUpdate": {
+      "$defs": {
+        "TaskError": {
+          "description": "Why a task failed. ``type`` names a ringfour exception class;\n``data`` carries its extras (reason, limit, ...).",
+          "properties": {
+            "data": {
+              "additionalProperties": true,
+              "default": {},
+              "title": "Data",
+              "type": "object"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "type": {
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "message"
+          ],
+          "title": "TaskError",
+          "type": "object"
+        }
+      },
+      "description": "One ``task.update`` notification.",
+      "properties": {
+        "cleanup": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cleanup"
+        },
+        "data": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Data"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "progress": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Progress"
+        },
+        "report_age": {
+          "default": 0.0,
+          "title": "Report Age",
+          "type": "number"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result"
+        },
+        "sequence": {
+          "default": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "state": {
+          "title": "State",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "state"
+      ],
+      "title": "TaskUpdate",
+      "type": "object"
+    },
+    "Temperature": {
+      "description": "Environmental temperature, Celsius.",
+      "properties": {
+        "frame": {
+          "title": "Frame",
+          "type": "string"
+        },
+        "stamp": {
+          "title": "Stamp",
+          "type": "number"
+        },
+        "temperature": {
+          "title": "Temperature",
+          "type": "number"
+        },
+        "variance": {
+          "default": 0.0,
+          "title": "Variance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "temperature",
+        "stamp",
+        "frame"
+      ],
+      "title": "Temperature",
+      "type": "object"
+    },
+    "ToolInfo": {
+      "description": "The tool fitted to a group, as the client sees it.",
+      "properties": {
+        "closed": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Closed"
+        },
+        "joint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Joint"
+        },
+        "open": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Open"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ToolInfo",
+      "type": "object"
+    },
+    "ToolProgress": {
+      "additionalProperties": false,
+      "properties": {
+        "position": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Position"
+        },
+        "unit": {
+          "enum": [
+            "rad",
+            "m"
+          ],
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit"
+      ],
+      "title": "ToolProgress",
+      "type": "object"
+    },
+    "ToolResult": {
+      "$defs": {
+        "StopReport": {
+          "additionalProperties": false,
+          "description": "Measured software stopping criterion; hardware commissioning is separate.",
+          "properties": {
+            "criterion": {
+              "title": "Criterion",
+              "type": "string"
+            },
+            "dwell": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Dwell"
+            },
+            "elapsed": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Elapsed"
+            },
+            "physical_stop": {
+              "enum": [
+                "unverified",
+                "uncommissioned"
+              ],
+              "title": "Physical Stop",
+              "type": "string"
+            },
+            "resource": {
+              "title": "Resource",
+              "type": "string"
+            },
+            "verified": {
+              "title": "Verified",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "resource",
+            "verified",
+            "criterion",
+            "physical_stop"
+          ],
+          "title": "StopReport",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Measured positioning evidence. This does not prove an object is held.",
+      "properties": {
+        "group": {
+          "title": "Group",
+          "type": "string"
+        },
+        "joint": {
+          "title": "Joint",
+          "type": "string"
+        },
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "position": {
+          "title": "Position",
+          "type": "number"
+        },
+        "residual": {
+          "title": "Residual",
+          "type": "number"
+        },
+        "stop": {
+          "$ref": "#/$defs/StopReport"
+        },
+        "target": {
+          "title": "Target",
+          "type": "number"
+        },
+        "tolerance": {
+          "title": "Tolerance",
+          "type": "number"
+        },
+        "unit": {
+          "enum": [
+            "rad",
+            "m"
+          ],
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation_id",
+        "group",
+        "joint",
+        "position",
+        "unit",
+        "target",
+        "residual",
+        "tolerance",
+        "stop"
+      ],
+      "title": "ToolResult",
+      "type": "object"
+    },
+    "TrajectoryProgress": {
+      "$defs": {
+        "JointValue": {
+          "additionalProperties": false,
+          "description": "One model-bound joint value in radians or metres, with model bounds.",
+          "properties": {
+            "lower": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Lower"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "position": {
+              "title": "Position",
+              "type": "number"
+            },
+            "unit": {
+              "enum": [
+                "rad",
+                "m"
+              ],
+              "title": "Unit",
+              "type": "string"
+            },
+            "upper": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Upper"
+            }
+          },
+          "required": [
+            "name",
+            "position",
+            "unit"
+          ],
+          "title": "JointValue",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Measured joint positions when the controller provides complete feedback.",
+      "properties": {
+        "elapsed_fraction": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Elapsed Fraction"
+        },
+        "fraction_basis": {
+          "anyOf": [
+            {
+              "const": "elapsed_time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fraction Basis"
+        },
+        "positions": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/JointValue"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Positions"
+        }
+      },
+      "title": "TrajectoryProgress",
+      "type": "object"
+    },
+    "TrajectoryResult": {
+      "$defs": {
+        "JointConfiguration": {
+          "additionalProperties": false,
+          "description": "Exact named joint coverage tied to one robot, group and model revision.",
+          "properties": {
+            "group": {
+              "title": "Group",
+              "type": "string"
+            },
+            "joints": {
+              "items": {
+                "$ref": "#/$defs/JointValue"
+              },
+              "title": "Joints",
+              "type": "array"
+            },
+            "model_revision": {
+              "title": "Model Revision",
+              "type": "string"
+            },
+            "robot": {
+              "title": "Robot",
+              "type": "string"
+            }
+          },
+          "required": [
+            "robot",
+            "group",
+            "model_revision",
+            "joints"
+          ],
+          "title": "JointConfiguration",
+          "type": "object"
+        },
+        "JointResidual": {
+          "additionalProperties": false,
+          "description": "One measured endpoint residual with its own unit and acceptance tolerance.",
+          "properties": {
+            "error": {
+              "title": "Error",
+              "type": "number"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "tolerance": {
+              "title": "Tolerance",
+              "type": "number"
+            },
+            "unit": {
+              "enum": [
+                "rad",
+                "m"
+              ],
+              "title": "Unit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "error",
+            "unit",
+            "tolerance"
+          ],
+          "title": "JointResidual",
+          "type": "object"
+        },
+        "JointValue": {
+          "additionalProperties": false,
+          "description": "One model-bound joint value in radians or metres, with model bounds.",
+          "properties": {
+            "lower": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Lower"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "position": {
+              "title": "Position",
+              "type": "number"
+            },
+            "unit": {
+              "enum": [
+                "rad",
+                "m"
+              ],
+              "title": "Unit",
+              "type": "string"
+            },
+            "upper": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Upper"
+            }
+          },
+          "required": [
+            "name",
+            "position",
+            "unit"
+          ],
+          "title": "JointValue",
+          "type": "object"
+        },
+        "StopReport": {
+          "additionalProperties": false,
+          "description": "Measured software stopping criterion; hardware commissioning is separate.",
+          "properties": {
+            "criterion": {
+              "title": "Criterion",
+              "type": "string"
+            },
+            "dwell": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Dwell"
+            },
+            "elapsed": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Elapsed"
+            },
+            "physical_stop": {
+              "enum": [
+                "unverified",
+                "uncommissioned"
+              ],
+              "title": "Physical Stop",
+              "type": "string"
+            },
+            "resource": {
+              "title": "Resource",
+              "type": "string"
+            },
+            "verified": {
+              "title": "Verified",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "resource",
+            "verified",
+            "criterion",
+            "physical_stop"
+          ],
+          "title": "StopReport",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Complete measured joint endpoint residuals and stopping evidence.",
+      "properties": {
+        "configuration": {
+          "$ref": "#/$defs/JointConfiguration"
+        },
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "residuals": {
+          "items": {
+            "$ref": "#/$defs/JointResidual"
+          },
+          "title": "Residuals",
+          "type": "array"
+        },
+        "stop": {
+          "$ref": "#/$defs/StopReport"
+        }
+      },
+      "required": [
+        "operation_id",
+        "configuration",
+        "residuals",
+        "stop"
+      ],
+      "title": "TrajectoryResult",
+      "type": "object"
+    },
+    "Transform": {
+      "$defs": {
+        "Quaternion": {
+          "description": "Orientation as a unit quaternion. Identity by default.",
+          "properties": {
+            "w": {
+              "default": 1.0,
+              "title": "W",
+              "type": "number"
+            },
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Quaternion",
+          "type": "object"
+        },
+        "Vec3": {
+          "description": "A frameless 3-vector.",
+          "properties": {
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Vec3",
+          "type": "object"
+        }
+      },
+      "description": "A rigid transform between two frames: applying it takes coordinates\nexpressed in ``child`` to coordinates expressed in ``parent``.",
+      "properties": {
+        "child": {
+          "title": "Child",
+          "type": "string"
+        },
+        "parent": {
+          "title": "Parent",
+          "type": "string"
+        },
+        "rotation": {
+          "$ref": "#/$defs/Quaternion"
+        },
+        "stamp": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stamp"
+        },
+        "translation": {
+          "$ref": "#/$defs/Vec3"
+        }
+      },
+      "required": [
+        "translation",
+        "rotation",
+        "parent",
+        "child"
+      ],
+      "title": "Transform",
+      "type": "object"
+    },
+    "Twist": {
+      "$defs": {
+        "Vec3": {
+          "description": "A frameless 3-vector.",
+          "properties": {
+            "x": {
+              "default": 0.0,
+              "title": "X",
+              "type": "number"
+            },
+            "y": {
+              "default": 0.0,
+              "title": "Y",
+              "type": "number"
+            },
+            "z": {
+              "default": 0.0,
+              "title": "Z",
+              "type": "number"
+            }
+          },
+          "title": "Vec3",
+          "type": "object"
+        }
+      },
+      "description": "Linear (m/s) and angular (rad/s) velocity.",
+      "properties": {
+        "angular": {
+          "$ref": "#/$defs/Vec3",
+          "default": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        "linear": {
+          "$ref": "#/$defs/Vec3",
+          "default": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      },
+      "title": "Twist",
+      "type": "object"
+    },
+    "Vec3": {
+      "description": "A frameless 3-vector.",
+      "properties": {
+        "x": {
+          "default": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.0,
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "default": 0.0,
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "title": "Vec3",
+      "type": "object"
+    },
+    "Welcome": {
+      "$defs": {
+        "Controller": {
+          "description": "The *role* a controller plays for a group, not its ROS node name.\n\nThe profile maps role -> controller name\n(``{trajectory: arm_trajectory_controller, ...}``), so a mission asks\nfor a capability and the profile answers with the robot's spelling of\nit. Every declared role must be loaded at boot (plan 6.0b) so the\nswitch is a switch, never a load.",
+          "enum": [
+            "trajectory",
+            "stream",
+            "velocity",
+            "tool"
+          ],
+          "title": "Controller",
+          "type": "string"
+        },
+        "GroupInfo": {
+          "description": "One group's static shape, delivered in the handshake.\n\nEverything here is profile config plus the joint list the agent\nresolved off the controller at startup. It is in the handshake and not\nbehind a call because kinematics is client-side (spec 26.2): a mission\ndoing `kin.reachable()` in a loop must not pay a round trip per solve,\nand it cannot solve at all without knowing the tip and the joint order.",
+          "properties": {
+            "control_modes": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/Controller"
+              },
+              "title": "Control Modes",
+              "type": "array"
+            },
+            "dof_mask": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Dof Mask"
+            },
+            "joints": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "title": "Joints",
+              "type": "array"
+            },
+            "kind": {
+              "$ref": "#/$defs/GroupKind"
+            },
+            "pointing_frame": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Pointing Frame"
+            },
+            "tip": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Tip"
+            },
+            "tool": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ToolInfo"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "workspace": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "prefixItems": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Workspace"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "title": "GroupInfo",
+          "type": "object"
+        },
+        "GroupKind": {
+          "description": "What a joint group is for, which decides what it is allowed to do.\n\nARM groups take IK and cartesian targets (they have a ``tip``);\nPOINTING (pan/tilt) and LINEAR (lifts, rails) are joint-space only.",
+          "enum": [
+            "arm",
+            "pointing",
+            "linear"
+          ],
+          "title": "GroupKind",
+          "type": "string"
+        },
+        "ProfileInfo": {
+          "description": "What the client learns about the robot at handshake time.\n\n``capabilities`` lists the capability names the profile provides\n(e.g. \"mobility\", \"lidar\"); see spec section 4 for the registry.",
+          "properties": {
+            "capabilities": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Capabilities",
+              "type": "array"
+            },
+            "model": {
+              "title": "Model",
+              "type": "string"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "version": {
+              "title": "Version",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "version",
+            "model",
+            "capabilities"
+          ],
+          "title": "ProfileInfo",
+          "type": "object"
+        },
+        "ToolInfo": {
+          "description": "The tool fitted to a group, as the client sees it.",
+          "properties": {
+            "closed": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Closed"
+            },
+            "joint": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Joint"
+            },
+            "open": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Open"
+            },
+            "type": {
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "title": "ToolInfo",
+          "type": "object"
+        }
+      },
+      "description": "The agent's handshake reply: protocol version + capability report.\n\n``instances`` lists the named instances of multi-instance capabilities\n({\"arms\": (\"left\", \"right\"), ...}); it is what lets the client resolve\nsingular sugar (robot.arm vs robot.arms[\"left\"]) without extra calls.",
+      "properties": {
+        "actions": {
+          "additionalProperties": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "default": {},
+          "title": "Actions",
+          "type": "object"
+        },
+        "capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "description_sha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description Sha"
+        },
+        "features": {
+          "additionalProperties": true,
+          "default": {},
+          "title": "Features",
+          "type": "object"
+        },
+        "group_description_shas": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "title": "Group Description Shas",
+          "type": "object"
+        },
+        "groups": {
+          "additionalProperties": {
+            "$ref": "#/$defs/GroupInfo"
+          },
+          "default": {},
+          "title": "Groups",
+          "type": "object"
+        },
+        "instances": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "default": {},
+          "title": "Instances",
+          "type": "object"
+        },
+        "profile": {
+          "$ref": "#/$defs/ProfileInfo"
+        },
+        "protocol": {
+          "title": "Protocol",
+          "type": "integer"
+        },
+        "sensors": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "default": {},
+          "title": "Sensors",
+          "type": "object"
+        }
+      },
+      "required": [
+        "protocol",
+        "profile",
+        "capabilities"
+      ],
+      "title": "Welcome",
+      "type": "object"
+    }
+  },
+  "notifications": {
+    "audit.event": {
+      "doc": "One audit event, pushed to connections that called audit.subscribe.",
+      "params": "AuditEvent"
+    },
+    "event": {
+      "doc": "One system event (kind: estop|watch \u2014 a subset of AuditKind), pushed to connections that called events.subscribe.",
+      "params": {
+        "data": "object",
+        "kind": "str",
+        "stamp": "float"
+      }
+    },
+    "payload.header": {
+      "doc": "Announces one binary WebSocket frame. The frame's first 8 bytes are the big-endian payload id, then the raw bytes.",
+      "params": "PayloadHeader"
+    },
+    "stream.data": {
+      "doc": "One tick of a camera/lidar stream (kind: camera.frame | lidar.scan; arrays via PayloadRef), or its termination ({stream_id, end: true, error?}).",
+      "params": {
+        "...": "tick fields by kind",
+        "stream_id": "str"
+      }
+    },
+    "task.update": {
+      "doc": "Task state/progress change, pushed to the client that started the task.",
+      "params": "TaskUpdate"
+    }
+  },
+  "protocol": 1
+}
